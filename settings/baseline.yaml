@@ -1,0 +1,93 @@
+hparams:
+  network:
+    arch: FPN
+    encoder_name: efficientnet-b0
+    encoder_weights: null
+    in_channels: 1
+
+  loss:
+    type: dice_loss
+    mode: multiclass
+    classes: [1, 2]
+
+  optimizer:
+    lr: 0.0001
+
+  scheduler:
+    mode: min
+    factor: 0.1
+    patience: 10
+    threshold: !!float 1e-4
+
+data:
+  dataset:
+    normalization_type: standard_scaling
+
+    augmentations:
+        use: true
+        transforms:
+          - horizontal_flip:
+              use: true
+              p: 0.5
+          - rotate:
+              use: true
+              limit: 10
+              border_mode: 1 # cv2.BORDER_REPLICATE
+              p: 0.5
+
+
+  data_loader:
+    train_batch_size: 32
+    val_batch_size: 32
+    test_batch_size: 32
+    num_workers: 8
+
+optuna:
+  use: true
+  hparams:
+    optimizer:
+      lr:
+        min: !!float 1e-6
+        max: !!float 0.1
+
+  options:
+    optimize:
+      n_trials: 10
+
+    pruner:
+      type: median
+      n_warmup_steps: 10
+      interval_steps: 10
+
+
+training:
+  trainer:
+    accelerator: gpu
+    devices: [ 0 ]
+    max_epochs: 200
+    check_val_every_n_epoch: 1
+    benchmark: true
+
+  callbacks:
+    model_checkpoint:
+      monitor: val_loss
+      mode: min
+      save_top_k: 5
+      filename: "{epoch}-{val_loss:.12f}"
+
+    learning_rate_monitor:
+      logging_interval: step
+
+    early_stopping:
+      monitor: val_loss
+      mode: min
+      patience: 30
+
+  loggers:
+    mlflow:
+      tracking_uri: http://localhost:5000
+
+common:
+  dataset: /app/data/dataset/
+  experiment: baseline
+  experiments_dir: /app/data/experiments/

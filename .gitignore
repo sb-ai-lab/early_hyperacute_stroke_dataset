@@ -1,0 +1,8 @@
+venv/*
+data/*
+.idea/*
+*.pyc
+!data/model
+data/model/*
+!data/model/model.pt
+!data/model/baseline.yaml
