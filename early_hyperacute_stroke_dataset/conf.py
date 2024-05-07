@@ -23,3 +23,5 @@ LABELS = {
     "ischemic_core": 1,
     "penumbra": 2
 }
+
+LABELS_INVERSE = {value: key for key, value in LABELS.items()}
