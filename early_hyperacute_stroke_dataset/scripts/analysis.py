@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import torch
+import segmentation_models_pytorch as smp
 from torchmetrics.classification import Dice, MulticlassJaccardIndex
 
 from early_hyperacute_stroke_dataset import conf
@@ -50,16 +51,33 @@ class StudyMetrics:
     iou_3d: Optional[float] = None
     iou: List[float] = field(init=False, repr=True)
 
+    sensitivity_3d: Optional[float] = None
+    sensitivity: List[float] = field(init=False, repr=True)
+
+    specificity_3d: Optional[float] = None
+    specificity: List[float] = field(init=False, repr=True)
+
+    npv_3d: Optional[float] = None
+    npv: List[float] = field(init=False, repr=True)
+
+    ppv_3d: Optional[float] = None
+    ppv: List[float] = field(init=False, repr=True)
+
     def __post_init__(self):
         self.dice = list()
         self.iou = list()
+        self.sensitivity = list()
+        self.specificity = list()
+        self.npv = list()
+        self.ppv = list()
 
 
 def get_metrics(
     predict_index: Dict[str, data_tools.PredictIndexItem],
     reference_index: Dict[str, List[data_tools.ReferenceIndexSlice]]
 ) -> Dict[str, StudyMetrics]:
-    dice_fn = Dice(ignore_index=conf.LABELS["background"], average="macro", num_classes=len(conf.LABELS), zero_division=1.0)
+    dice_fn = Dice(ignore_index=conf.LABELS["background"], average="macro", num_classes=len(conf.LABELS),
+                   zero_division=1.0)
     iou_fn = MulticlassJaccardIndex(num_classes=len(conf.LABELS))
     
     metrics = dict()
@@ -78,9 +96,38 @@ def get_metrics(
         study_metrics.iou_3d = float(iou_fn(predict, reference).item())
         study_metrics.iou = [float(iou_fn(predict[i], reference[i]).item()) for i in range(len(predict))]
 
+        # Sensitivity.
+        tp, fp, fn, tn = smp.metrics.get_stats(predict, reference, mode="multiclass", num_classes=len(conf.LABELS))
+
+        study_metrics.sensitivity_3d = float(smp.metrics.sensitivity(tp, fp, fn, tn, reduction="macro").item())
+        study_metrics.sensitivity = [
+            float(smp.metrics.sensitivity(tp[i], fp[i], fn[i], tn[i], reduction="macro").item()) for i in
+            range(len(predict))]
+
+        # Specificity.
+        study_metrics.specificity_3d = float(smp.metrics.specificity(tp, fp, fn, tn, reduction="macro").item())
+        study_metrics.specificity = [
+            float(smp.metrics.specificity(tp[i], fp[i], fn[i], tn[i], reduction="macro").item()) for i in
+            range(len(predict))]
+
+        # NPV.
+        study_metrics.npv_3d = float(smp.metrics.negative_predictive_value(tp, fp, fn, tn, reduction="macro").item())
+        study_metrics.npv = [
+            float(smp.metrics.negative_predictive_value(tp[i], fp[i], fn[i], tn[i], reduction="macro").item()) for i in
+            range(len(predict))]
+
+        # PPV.
+        study_metrics.ppv_3d = float(smp.metrics.positive_predictive_value(tp, fp, fn, tn, reduction="macro").item())
+        study_metrics.ppv = [
+            float(smp.metrics.positive_predictive_value(tp[i], fp[i], fn[i], tn[i], reduction="macro").item()) for i in
+            range(len(predict))]
+
         metrics[study_name] = study_metrics
 
-        print(f"Study {study_name} has been processed. DICE 3D: {study_metrics.dice_3d}. IoU 3D: {study_metrics.iou_3d}.")
+        print(
+            f"Study {study_name} has been processed. DICE 3D: {study_metrics.dice_3d}. IoU 3D: {study_metrics.iou_3d}."
+            f"Sensitivity 3D: {study_metrics.sensitivity_3d}. Specifity 3D: {study_metrics.specificity_3d}."
+            f"NPV 3D: {study_metrics.npv_3d}. PPV 3D: {study_metrics.ppv_3d}.")
     
     return metrics
 
@@ -100,6 +147,18 @@ def analysis(metrics: Dict[str, StudyMetrics]) -> Dict[str, Dict[str, float]]:
 
     iou_3d_values = [item.iou_3d for item in metrics.values()]
     iou_values = [value for item in metrics.values() for value in item.iou]
+
+    sensitivity_3d_values = [item.sensitivity_3d for item in metrics.values()]
+    sensitivity_values = [value for item in metrics.values() for value in item.sensitivity]
+
+    specificity_3d_values = [item.specificity_3d for item in metrics.values()]
+    specificity_values = [value for item in metrics.values() for value in item.specificity]
+
+    npv_3d_values = [item.npv_3d for item in metrics.values()]
+    npv_values = [value for item in metrics.values() for value in item.npv]
+
+    ppv_3d_values = [item.ppv_3d for item in metrics.values()]
+    ppv_values = [value for item in metrics.values() for value in item.ppv]
 
     evaluations = {
         "dice_3d": {
@@ -125,6 +184,54 @@ def analysis(metrics: Dict[str, StudyMetrics]) -> Dict[str, Dict[str, float]]:
             "std": float(np.std(iou_values)),
             "min": float(np.min(iou_values)),
             "max": float(np.max(iou_values))
+        },
+        "sensitivity_3d": {
+            "mean": float(np.mean(sensitivity_3d_values)),
+            "std": float(np.std(sensitivity_3d_values)),
+            "min": float(np.min(sensitivity_3d_values)),
+            "max": float(np.max(sensitivity_3d_values))
+        },
+        "sensitivity": {
+            "mean": float(np.mean(sensitivity_values)),
+            "std": float(np.std(sensitivity_values)),
+            "min": float(np.min(sensitivity_values)),
+            "max": float(np.max(sensitivity_values))
+        },
+        "specificity_3d": {
+            "mean": float(np.mean(specificity_3d_values)),
+            "std": float(np.std(specificity_3d_values)),
+            "min": float(np.min(specificity_3d_values)),
+            "max": float(np.max(specificity_3d_values))
+        },
+        "specificity": {
+            "mean": float(np.mean(specificity_values)),
+            "std": float(np.std(specificity_values)),
+            "min": float(np.min(specificity_values)),
+            "max": float(np.max(specificity_values))
+        },
+        "npv_3d": {
+            "mean": float(np.mean(npv_3d_values)),
+            "std": float(np.std(npv_3d_values)),
+            "min": float(np.min(npv_3d_values)),
+            "max": float(np.max(npv_3d_values))
+        },
+        "npv": {
+            "mean": float(np.mean(npv_values)),
+            "std": float(np.std(npv_values)),
+            "min": float(np.min(npv_values)),
+            "max": float(np.max(npv_values))
+        },
+        "ppv_3d": {
+            "mean": float(np.mean(ppv_3d_values)),
+            "std": float(np.std(ppv_3d_values)),
+            "min": float(np.min(ppv_3d_values)),
+            "max": float(np.max(ppv_3d_values))
+        },
+        "ppv": {
+            "mean": float(np.mean(ppv_values)),
+            "std": float(np.std(ppv_values)),
+            "min": float(np.min(ppv_values)),
+            "max": float(np.max(ppv_values))
         }
     }
 
