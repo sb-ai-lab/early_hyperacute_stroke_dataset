@@ -1,8 +1,8 @@
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
 
 MAINTAINER Stepan Kudin <sskudin@sberbank.ru>
 
-COPY requirements.txt /tmp/requirements.txt
+COPY requirements_minimal.txt /tmp/requirements.txt
 
 ENV USER=docker
 ENV GROUP=docker
@@ -34,8 +34,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         python3-pip \
         python3-setuptools
 
-RUN pip3 install -U pip
-RUN python3 -m pip install -r /tmp/requirements.txt
+RUN python3 -m pip install --break-system-packages -r /tmp/requirements.txt
+
+RUN deluser ubuntu
 
 RUN addgroup --gid 1000 ${GROUP} && \
     adduser --uid 1000 --ingroup ${GROUP} --home /home/${USER} --shell /bin/sh --disabled-password --gecos "" ${USER}
