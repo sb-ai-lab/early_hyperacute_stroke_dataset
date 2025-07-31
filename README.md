@@ -1,5 +1,8 @@
 # Early hyperacute stroke dataset
 
+This is the baseline code and model from paper in the journal 
+[Nature Scientific Data](https://www.nature.com/articles/s41597-025-05000-0).
+
 ## Installation
 
 Build docker image:
